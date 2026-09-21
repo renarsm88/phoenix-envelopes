@@ -1,0 +1,887 @@
+<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#46617D">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Envelopes">
+<meta name="application-name" content="Envelopes">
+<title>Phoenix Envelopes</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap">
+<style>
+  :root{
+    --ground:#FBFAF8; --surface:#FFFFFF; --sunk:#F1F0EC; --raised:#FFFFFF;
+    --ink:#1B2733; --body:#3A4750; --muted:#68757C; --faint:#93A0A8;
+    --line:#E2E5E0; --line-soft:#EDEFEA;
+    --accent:#46617D; --accent-wash:#EBF0F5;
+    --ok:#2E7D55; --ok-wash:#E7F2EC;
+    --tight:#966A0F; --tight-wash:#F7F0DC;
+    --over:#B4531F; --over-wash:#FAEBE2;
+    --move:#6B4C8A; --move-wash:#F0EBF6;
+    --display:'Fraunces',Georgia,'Iowan Old Style',serif;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --shadow:0 1px 2px rgba(27,39,51,.05), 0 1px 1px rgba(27,39,51,.04);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#12181D; --surface:#1B232A; --sunk:#232C34; --raised:#212B33;
+      --ink:#E9EEF1; --body:#C0CAD1; --muted:#8E9BA4; --faint:#6E7C86;
+      --line:#2C373F; --line-soft:#263037;
+      --accent:#8FB2D0; --accent-wash:#1E2B36;
+      --ok:#6BC496; --ok-wash:#172C22;
+      --tight:#DCB65B; --tight-wash:#2D2617;
+      --over:#E89163; --over-wash:#331F17;
+      --move:#B79AD6; --move-wash:#261F36;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 1px 1px rgba(0,0,0,.2);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#12181D; --surface:#1B232A; --sunk:#232C34; --raised:#212B33;
+    --ink:#E9EEF1; --body:#C0CAD1; --muted:#8E9BA4; --faint:#6E7C86;
+    --line:#2C373F; --line-soft:#263037;
+    --accent:#8FB2D0; --accent-wash:#1E2B36;
+    --ok:#6BC496; --ok-wash:#172C22;
+    --tight:#DCB65B; --tight-wash:#2D2617;
+    --over:#E89163; --over-wash:#331F17;
+    --move:#B79AD6; --move-wash:#261F36;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 1px 1px rgba(0,0,0,.2);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0; background:var(--ground); color:var(--body);
+       font-family:var(--sans); font-size:16px; line-height:1.5;
+       -webkit-font-smoothing:antialiased; -webkit-text-size-adjust:100%}
+  .num{font-variant-numeric:tabular-nums}
+  h1,h2,h3{font-family:var(--display); color:var(--ink); margin:0;
+           font-weight:600; text-wrap:balance; letter-spacing:-.01em}
+
+  .bar{position:sticky; top:env(safe-area-inset-top,0px); z-index:20;
+       background:var(--surface); border-bottom:1px solid var(--line)}
+  .bar .inner{max-width:52rem; margin:0 auto; padding:.7rem 1rem;
+              display:flex; align-items:center; gap:.65rem; flex-wrap:wrap}
+  .mnav{display:flex; align-items:center; gap:.15rem}
+  .mnav button{width:1.9rem; height:1.9rem; border-radius:6px; flex:none;
+               border:1px solid var(--line); background:var(--surface);
+               color:var(--body); font-size:1rem; line-height:1; cursor:pointer}
+  .mnav button:hover{background:var(--sunk)}
+  .mlabel{font-family:var(--display); font-size:1.02rem; color:var(--ink);
+          min-width:7.2rem; text-align:center}
+  .spacer{flex:1 1 auto}
+  .headline{display:flex; flex-direction:column; align-items:flex-end; line-height:1.1}
+  .headline .k{font-size:.62rem; letter-spacing:.12em; text-transform:uppercase;
+               color:var(--muted); font-weight:700}
+  .headline .v{font-family:var(--display); font-size:1.5rem; color:var(--ink)}
+
+  .wrap{max-width:52rem; margin:0 auto; padding:1.15rem 1rem 4rem;
+        display:flex; flex-direction:column; gap:1.5rem;
+        position:relative; z-index:1}
+
+  .banner{border-radius:9px; padding:.7rem .9rem; font-size:.85rem;
+          border:1px solid var(--line); background:var(--sunk); color:var(--muted)}
+  .banner.warn{border-color:var(--over); background:var(--over-wash); color:var(--over)}
+  .banner strong{color:var(--ink)}
+
+  section > h2{font-size:1.02rem; margin-bottom:.55rem}
+  .sub{font-size:.82rem; color:var(--muted); margin:0 0 .7rem}
+
+  /* ---- envelopes: a list, not a grid of cards ---- */
+  .envs{display:flex; flex-direction:column;
+        border:1px solid var(--line); border-radius:10px;
+        background:var(--surface); overflow:hidden; box-shadow:var(--shadow)}
+  .env{display:grid; grid-template-columns:1fr auto; gap:.1rem .8rem;
+       padding:.7rem .85rem; border-bottom:1px solid var(--line-soft);
+       cursor:pointer; background:none; border-left:0; border-right:0; border-top:0;
+       text-align:left; font:inherit; color:inherit; width:100%}
+  .env:last-child{border-bottom:0}
+  .env:hover{background:var(--sunk)}
+  .env:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
+  .env .name{color:var(--ink); font-weight:500; font-size:.94rem}
+  .env .left{font-family:var(--display); font-size:1.18rem; color:var(--ink);
+             text-align:right; white-space:nowrap}
+  .env .of{font-size:.77rem; color:var(--muted); grid-column:1}
+  .env .state{font-size:.7rem; letter-spacing:.06em; text-transform:uppercase;
+              font-weight:700; text-align:right; white-space:nowrap}
+  .env .track{grid-column:1/-1; height:5px; border-radius:99px;
+              background:var(--sunk); overflow:hidden; margin-top:.35rem}
+  .env .fill{height:100%; border-radius:99px}
+  .s-ok .left,.s-ok .state{color:var(--ok)} .s-ok .fill{background:var(--ok)}
+  .s-tight .left,.s-tight .state{color:var(--tight)} .s-tight .fill{background:var(--tight)}
+  .s-over .left,.s-over .state{color:var(--over)} .s-over .fill{background:var(--over)}
+  .env.furn .name::after{content:'Oct + Nov only'; font-size:.6rem; letter-spacing:.08em;
+        text-transform:uppercase; font-weight:700; color:var(--move);
+        border:1px solid var(--move); border-radius:99px; padding:.05rem .35rem;
+        margin-left:.45rem; white-space:nowrap}
+
+  /* ---- log form ---- */
+  form.log{display:grid; gap:.5rem; grid-template-columns:1fr;
+           border:1px solid var(--line); border-radius:10px; padding:.85rem;
+           background:var(--surface); box-shadow:var(--shadow)}
+  @media (min-width:34rem){
+    form.log{grid-template-columns:7rem 1fr auto}
+    form.log .wide{grid-column:1/-1}
+  }
+  label.f{display:flex; flex-direction:column; gap:.2rem; font-size:.7rem;
+          letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:700}
+  input,select,textarea{font:inherit; color:var(--ink); background:var(--ground);
+        border:1px solid var(--line); border-radius:7px; padding:.5rem .55rem; width:100%}
+  input:focus-visible,select:focus-visible,button:focus-visible{
+        outline:2px solid var(--accent); outline-offset:1px}
+  .btn{font:inherit; font-weight:600; font-size:.92rem; cursor:pointer;
+       border-radius:7px; padding:.55rem .95rem; border:1px solid transparent;
+       background:var(--accent); color:var(--surface)}
+  .btn:hover{filter:brightness(1.07)}
+  .btn.ghost{background:var(--surface); color:var(--body); border-color:var(--line)}
+  .btn.ghost:hover{background:var(--sunk)}
+  .btn[disabled]{opacity:.5; cursor:not-allowed; filter:none}
+  .btn.wide{align-self:end}
+
+  /* ---- transfers ---- */
+  .tf{display:flex; flex-direction:column; border:1px solid var(--line);
+      border-radius:10px; background:var(--surface); overflow:hidden; box-shadow:var(--shadow)}
+  .tf > div{display:flex; align-items:center; gap:.6rem; padding:.6rem .85rem;
+            border-bottom:1px solid var(--line-soft)}
+  .tf > div:last-child{border-bottom:0}
+  .tf input[type=checkbox]{width:1.05rem; height:1.05rem; flex:none; accent-color:var(--ok)}
+  .tf label{flex:1; color:var(--ink); font-size:.92rem; cursor:pointer}
+  .tf .amt{font-family:var(--display); color:var(--ink); white-space:nowrap}
+  .tf .pot{font-size:.76rem; color:var(--muted); display:block}
+
+  /* ---- entries ---- */
+  table{width:100%; border-collapse:collapse; font-size:.88rem}
+  .scroll{overflow-x:auto; border:1px solid var(--line); border-radius:10px;
+          background:var(--surface); box-shadow:var(--shadow)}
+  th{font-size:.64rem; letter-spacing:.11em; text-transform:uppercase;
+     color:var(--muted); text-align:left; font-weight:700;
+     padding:.55rem .7rem; border-bottom:1px solid var(--line)}
+  td{padding:.5rem .7rem; border-bottom:1px solid var(--line-soft); color:var(--body)}
+  tr:last-child td{border-bottom:0}
+  td.n{text-align:right; font-variant-numeric:tabular-nums; color:var(--ink); white-space:nowrap}
+  td.act{text-align:right; width:1%}
+  .rm{border:1px solid var(--line); background:var(--surface); color:var(--muted);
+      cursor:pointer; font:inherit; font-size:.76rem; font-weight:600;
+      padding:.2rem .5rem; border-radius:6px; white-space:nowrap}
+  .rm:hover{color:var(--over); border-color:var(--over); background:var(--over-wash)}
+  .rm[disabled]{opacity:.4; cursor:not-allowed}
+  .undo{display:flex; align-items:center; gap:.6rem; flex-wrap:wrap;
+        border:1px solid var(--line); border-left:3px solid var(--tight);
+        background:var(--tight-wash); border-radius:0 8px 8px 0;
+        padding:.55rem .8rem; font-size:.85rem; color:var(--body); margin-bottom:.6rem}
+  .undo .sp{flex:1 1 auto}
+  .empty{padding:1.1rem .85rem; color:var(--muted); font-size:.88rem; text-align:center}
+
+  /* ---- savings ---- */
+  .sv{border:1px solid var(--line); border-radius:10px; background:var(--surface);
+      padding:1rem; display:flex; flex-direction:column; gap:.75rem; box-shadow:var(--shadow)}
+  .sv .top{display:flex; align-items:baseline; justify-content:space-between; gap:1rem}
+  .sv .bal{font-family:var(--display); font-size:2.15rem; color:var(--ink); line-height:1}
+  .sv .k{font-size:.62rem; letter-spacing:.12em; text-transform:uppercase;
+         color:var(--muted); font-weight:700}
+  .sweep{border-left:3px solid var(--ok); background:var(--ok-wash);
+         border-radius:0 8px 8px 0; padding:.7rem .85rem; font-size:.85rem; color:var(--body)}
+  .sweep strong{color:var(--ink)}
+  .hist{font-size:.82rem; color:var(--muted)}
+  .hist div{display:flex; justify-content:space-between; gap:1rem; padding:.15rem 0}
+
+  footer{border-top:1px solid var(--line); padding-top:.9rem;
+         font-size:.78rem; color:var(--muted)}
+  a{color:var(--accent)}
+  /* ---- Sonoran contour ground ---- */
+  #topo{position:fixed; inset:0; width:100%; height:100%; z-index:0;
+        pointer-events:none; opacity:.95}
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) #topo{opacity:.8} }
+  :root[data-theme="dark"] #topo{opacity:.8}
+  .placemark{font-size:.7rem; color:var(--faint); letter-spacing:.09em;
+             text-transform:uppercase; text-align:center; font-weight:600}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
+</style>
+
+<canvas id="topo" aria-hidden="true"></canvas>
+
+<div class="bar">
+  <div class="inner">
+    <div class="mnav">
+      <button type="button" id="prev" aria-label="Previous month">&lsaquo;</button>
+      <span class="mlabel num" id="mlabel">Loading</span>
+      <button type="button" id="next" aria-label="Next month">&rsaquo;</button>
+    </div>
+    <span class="spacer"></span>
+    <div class="headline">
+      <span class="k" id="paidk">Left to spend</span>
+      <span class="v num" id="bigleft">$0</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="banner" id="status">Connecting.</div>
+  <div class="banner" id="phase" hidden></div>
+
+  <section>
+    <h2>Envelopes</h2>
+    <p class="sub" id="envsub">Tap one to log against it.</p>
+    <div class="envs" id="envs"></div>
+  </section>
+
+  <section>
+    <h2>Log a spend</h2>
+    <form class="log" id="form" autocomplete="off">
+      <label class="f" for="amt">Amount
+        <input id="amt" name="amt" type="number" step="0.01" min="0" inputmode="decimal"
+               placeholder="0.00" required>
+      </label>
+      <label class="f" for="cat">Envelope
+        <select id="cat" name="cat"></select>
+      </label>
+      <button class="btn wide" type="submit" id="add">Add</button>
+      <label class="f wide" for="note">What was it (optional)
+        <input id="note" name="note" type="text" maxlength="60" placeholder="Fry&rsquo;s, coffee, tickets">
+      </label>
+    </form>
+  </section>
+
+  <section>
+    <h2>Payday transfers</h2>
+    <p class="sub">Move these on the 1st and the 15th, before anything gets spent. One savings
+      account, not five pots: the car, the dentist, Costco and holidays all come out of the
+      emergency fund, which is why it is bigger than it used to be.</p>
+    <div class="tf" id="tf"></div>
+  </section>
+
+  <section>
+    <h2>This month&rsquo;s spending</h2>
+    <p class="sub">Logged something by mistake? Remove puts the money straight back in its
+      envelope, and you get one chance to undo that too. Nothing here is final.</p>
+    <div id="undobox"></div>
+    <div class="scroll"><table>
+      <thead><tr><th>Day</th><th>Envelope</th><th>What</th><th style="text-align:right">Amount</th><th>Put back</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Big savings account</h2>
+    <div class="sv">
+      <div class="top">
+        <div><span class="k">Balance</span><div class="bal num" id="bal">$5,865.22</div></div>
+        <button class="btn ghost" type="button" id="editbal">Correct balance</button>
+      </div>
+      <div class="sweep" id="sweepbox"></div>
+    <p class="sub" style="margin:0">Everything lives here now: the emergency cushion, the car
+      fund, the dentist, Costco and holidays. Roughly $173 a month of that $463 is already
+      spoken for by those known costs, so treat the balance as smaller than it looks.</p>
+      <div class="hist" id="hist"></div>
+    </div>
+  </section>
+
+  <p class="placemark">South Mountain &middot; Camelback &middot; Piestewa Peak &middot; the Estrellas</p>
+
+  <footer>
+    <p><strong>Add this page to your home screen</strong> so it opens like an app: in Safari tap Share, then Add to Home Screen. Your entries live on this device, so use the same phone each time and do not clear website data.</p>
+    <p>Envelope amounts come from <em>Phoenix Budget 2026.xlsx</em>. She is paid hourly on the
+      1st and the 15th, so a month pays its working days times $132.91 after tax. That is why
+      October, November and February are all different sizes. The bills, the spending money and
+      the savings transfer stay the same; the difference lands in the last bucket. Nothing here
+      is sent anywhere: it is stored with this page.</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* She is hourly, so a month pays its WORKING DAYS times the day rate.
+     $160 gross a day, less 16.93% withholding. */
+  var NET_PER_DAY = 132.91249;   /* 34,690.16 net a year, 261 working days */
+  var DAYS = {
+    '2026-10':22, '2026-11':21, '2026-12':23,
+    '2027-01':21, '2027-02':20, '2027-03':23, '2027-04':22, '2027-05':21, '2027-06':22,
+    '2027-07':22, '2027-08':22, '2027-09':22, '2027-10':21, '2027-11':22, '2027-12':23
+  };
+  function daysIn(m){ return DAYS[m] || 22; }
+  function income(m){ return Math.round(daysIn(m) * NET_PER_DAY * 100) / 100; }
+  var START_BALANCE = 5865.22;
+
+  var ENV = [
+    {id:'shop',   name:'Groceries, household & personal care', budget:575},
+    {id:'gas',    name:'Gas',                                  budget:145},
+    {id:'power',  name:'Electricity',                          budget:80},
+    {id:'phone',  name:'Phone',                                budget:30},
+    {id:'food',   name:'Eating out',                           budget:165},
+    {id:'fun',    name:'Concerts & drinks',                    budget:165},
+    {id:'subs',   name:'Subscriptions',                        budget:69},
+    {id:'clothes',name:'Clothes',                              budget:60}
+  ];
+  var FIXED = 1289;   /* the eight envelopes above */
+  var SAVE  = 752;    /* emergency 463 + Roth 289, the same every payday */
+  /* the furniture line runs in these two months only, then stops for good */
+  var FURN_MONTHS = ['2026-10','2026-11'];
+  function furnishing(m){ return FURN_MONTHS.indexOf(m) > -1; }
+
+  var TF_WHILE = [
+    {id:'emerg', name:'Emergency fund',
+     pot:'The one savings account. Also covers the car, the dentist, Costco and holidays.',
+     amt:463},
+    {id:'roth',  name:'Roth IRA', pot:'Retirement account', amt:289}
+  ];
+  function transfers(){
+    if (furnishing(cur)) return TF_WHILE;
+    var spare = Math.round((income(cur) - FIXED - 625 - 400) * 100) / 100;
+    return [
+      {id:'roth2',  name:'Roth IRA, raised to the annual max',
+       pot:'$7,500 a year. Do this one first.', amt:625},
+      {id:'emerg2', name:'Emergency fund, finish the 6-month goal',
+       pot:'Goal is $7,734. Stops once it is full.', amt:400},
+      {id:'invest', name:'Index fund, or the 401(k) match if there is one',
+       pot:'Whatever the month leaves. Ask HR about a match first.', amt:spare}
+    ];
+  }
+  function furnBudget(m){ return Math.round((income(m) - FIXED - SAVE) * 100) / 100; }
+  function envelopes(){
+    if (!furnishing(cur)) return ENV;
+    return ENV.concat([{id:'furn', name:'Furniture fund',
+                        budget:furnBudget(cur), furn:true}]);
+  }
+  var ENVBY = {}; ENV.forEach(function(e){ ENVBY[e.id] = e; });
+
+  var $ = function(id){ return document.getElementById(id); };
+  function money(n){
+    var neg = n < 0;
+    var s = '$' + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
+    return neg ? '-' + s : s;
+  }
+  function money2(n){
+    return '$' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+  function monthKey(d){
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+  }
+  function monthName(key){
+    var p = key.split('-');
+    var d = new Date(Number(p[0]), Number(p[1])-1, 1);
+    return d.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  }
+  function shiftMonth(key, by){
+    var p = key.split('-');
+    var d = new Date(Number(p[0]), Number(p[1])-1+by, 1);
+    return monthKey(d);
+  }
+
+  // ---------------------------------------------------------------- state --
+  var FIRST = '2026-10';
+  var cur = monthKey(new Date());
+  if (cur < FIRST) cur = FIRST;
+  var month = {entries:[], transfers:{}};
+  var savings = {balance:START_BALANCE, sweeps:[]};
+  var canWrite = true;
+  var db = null, unsubM = null, unsubS = null;
+  var chain = Promise.resolve();
+  var lastRemoved = null;
+
+  function queue(fn){
+    chain = chain.then(fn).catch(function(e){
+      var code = (e && e.code) || '';
+      if (code === 'invalid_argument' || code === 'not_granted') {
+        canWrite = false;
+        setStatus('You can read this page but not change it. Ask Renārs for edit access and reload.', true);
+        render();
+      } else {
+        setStatus('That did not save. Check your connection and try again.', true);
+      }
+    });
+    return chain;
+  }
+
+  function setStatus(text, warn){
+    var el = $('status');
+    el.textContent = text;
+    el.className = 'banner' + (warn ? ' warn' : '');
+    el.hidden = !text;
+  }
+
+  // -------------------------------------------------------------- storage --
+  var LS = {
+    read: function(k, dflt){
+      try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : dflt; }
+      catch(e){ return dflt; }
+    },
+    write: function(k, v){
+      try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){}
+    }
+  };
+
+  function loadLocal(){
+    month = LS.read('pb.m.'+cur, {entries:[], transfers:{}});
+    savings = LS.read('pb.savings', {balance:START_BALANCE, sweeps:[]});
+    render();
+  }
+  function saveLocalMonth(){ LS.write('pb.m.'+cur, month); }
+  function saveLocalSavings(){ LS.write('pb.savings', savings); }
+
+  function writeMonth(){
+    if (db) return queue(function(){ return db.doc('months/'+cur).set(month); });
+    saveLocalMonth(); render(); return Promise.resolve();
+  }
+  function writeSavings(){
+    if (db) return queue(function(){ return db.doc('account/savings').set(savings); });
+    saveLocalSavings(); render(); return Promise.resolve();
+  }
+
+  function subscribe(){
+    if (!db) { loadLocal(); return; }
+    if (unsubM) { unsubM(); unsubM = null; }
+    unsubM = db.doc('months/'+cur).onSnapshot(function(snap){
+      var d = snap.exists ? snap.data() : null;
+      month = {
+        entries: (d && Array.isArray(d.entries)) ? d.entries : [],
+        transfers: (d && d.transfers && typeof d.transfers === 'object') ? d.transfers : {}
+      };
+      render();
+    }, function(){
+      setStatus('Live updates stopped. Reload the page to reconnect.', true);
+    });
+  }
+
+  // --------------------------------------------------------------- render --
+  function spentIn(id){
+    var t = 0;
+    for (var i=0;i<month.entries.length;i++){
+      if (month.entries[i].cat === id) t += Number(month.entries[i].amt) || 0;
+    }
+    return t;
+  }
+  function totalLeft(){
+    var t = 0;
+    envelopes().forEach(function(e){ t += e.budget - spentIn(e.id); });
+    return t;
+  }
+
+  function render(){
+    $('mlabel').textContent = monthName(cur);
+    $('paidk').textContent = daysIn(cur) + ' working days \u00b7 ' + money(income(cur)) +
+      ' in \u00b7 left to spend';
+    $('prev').disabled = shiftMonth(cur,-1) < FIRST;
+    $('prev').style.opacity = $('prev').disabled ? '.35' : '1';
+    $('prev').title = $('prev').disabled
+      ? 'The plan starts in ' + monthName(FIRST)
+      : 'Previous month';
+    var left = totalLeft();
+    $('bigleft').textContent = money(left);
+    $('bigleft').style.color = left < 0 ? 'var(--over)' : 'var(--ink)';
+
+    // envelopes
+    $('envsub').textContent = 'Tap one to log against it. ' + monthName(cur) + ' has ' +
+      daysIn(cur) + ' working days, so ' + money(income(cur)) + ' comes in: ' + money(FIXED) +
+      ' into these envelopes, ' + money(SAVE) + ' into savings' +
+      (furnishing(cur) ? ', and the rest into furniture.' : ', and the rest invested.');
+
+    var host = $('envs');
+    host.textContent = '';
+    var live = envelopes();
+    live.forEach(function(e){
+      var spent = spentIn(e.id);
+      var rem = e.budget - spent;
+      var pct = e.budget > 0 ? Math.min(100, (spent/e.budget)*100) : 0;
+      var cls = rem < 0 ? 's-over' : (spent/e.budget >= 0.8 ? 's-tight' : 's-ok');
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'env ' + cls + (e.furn ? ' furn' : '');
+      b.setAttribute('aria-label', 'Log a spend against ' + e.name);
+
+      var n = document.createElement('span'); n.className = 'name'; n.textContent = e.name;
+      var l = document.createElement('span'); l.className = 'left num'; l.textContent = money(rem);
+      var o = document.createElement('span'); o.className = 'of num';
+      o.textContent = money(spent) + ' of ' + money(e.budget) + ' used';
+      var s = document.createElement('span'); s.className = 'state';
+      s.textContent = rem < 0 ? 'over' : (spent/e.budget >= 0.8 ? 'tight' : 'left');
+      var tr = document.createElement('span'); tr.className = 'track';
+      var fi = document.createElement('span'); fi.className = 'fill';
+      fi.style.width = pct + '%'; tr.appendChild(fi);
+
+      b.appendChild(n); b.appendChild(l); b.appendChild(o); b.appendChild(s); b.appendChild(tr);
+      b.addEventListener('click', function(){
+        $('cat').value = e.id;
+        $('amt').focus();
+        $('amt').scrollIntoView({block:'center', behavior:'smooth'});
+      });
+      host.appendChild(b);
+    });
+
+    // transfers
+    var tfh = $('tf');
+    tfh.textContent = '';
+    transfers().forEach(function(t){
+      var row = document.createElement('div');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.id = 'tf-'+t.id;
+      cb.checked = !!month.transfers[t.id];
+      cb.disabled = !canWrite;
+      cb.addEventListener('change', function(){
+        month.transfers[t.id] = cb.checked;
+        writeMonth();
+      });
+      var lb = document.createElement('label');
+      lb.htmlFor = 'tf-'+t.id;
+      lb.textContent = t.name;
+      var pot = document.createElement('span'); pot.className = 'pot'; pot.textContent = t.pot;
+      lb.appendChild(pot);
+      var am = document.createElement('span'); am.className = 'amt num'; am.textContent = money(t.amt);
+      row.appendChild(cb); row.appendChild(lb); row.appendChild(am);
+      tfh.appendChild(row);
+    });
+
+    // the log form only offers envelopes that exist this month
+    var sel = $('cat'), keep = sel.value;
+    sel.textContent = '';
+    live.forEach(function(e){
+      var o = document.createElement('option');
+      o.value = e.id; o.textContent = e.name;
+      sel.appendChild(o);
+    });
+    if (keep && live.some(function(e){ return e.id === keep; })) sel.value = keep;
+
+    // a plain word about which phase this month is in
+    var ph = $('phase');
+    if (furnishing(cur)){
+      ph.textContent = 'Furnishing month. The furniture envelope is whatever ' +
+        monthName(cur) + ' leaves after the bills and savings, so it moves with the number of' +
+        ' working days. It runs in October and November only.';
+      ph.className = 'banner';
+    } else {
+      ph.textContent = 'Furnishing is over. What went to furniture now goes to the three' +
+        ' transfers below. The last one takes whatever the month leaves, so it is bigger in a' +
+        ' 23-day December than in a 20-day February.';
+      ph.className = 'banner';
+    }
+    ph.hidden = false;
+
+    // undo strip for the last removal
+    var ub = $('undobox');
+    ub.textContent = '';
+    if (lastRemoved && canWrite){
+      var strip = document.createElement('div');
+      strip.className = 'undo';
+      var txt = document.createElement('span');
+      txt.textContent = 'Removed ' + money2(Number(lastRemoved.amt)||0) + ' from ' +
+        ((ENVBY[lastRemoved.cat] && ENVBY[lastRemoved.cat].name) || lastRemoved.cat) + '.';
+      var sp = document.createElement('span'); sp.className = 'sp';
+      var ok = document.createElement('button');
+      ok.type = 'button'; ok.className = 'btn ghost'; ok.textContent = 'Put it back';
+      ok.addEventListener('click', function(){
+        var e = lastRemoved; lastRemoved = null;
+        month.entries = month.entries.concat([e]);
+        writeMonth(); render();
+      });
+      var no = document.createElement('button');
+      no.type = 'button'; no.className = 'rm'; no.textContent = 'Dismiss';
+      no.addEventListener('click', function(){ lastRemoved = null; render(); });
+      strip.appendChild(txt); strip.appendChild(sp); strip.appendChild(ok); strip.appendChild(no);
+      ub.appendChild(strip);
+    }
+
+    // entries
+    var rows = $('rows');
+    rows.textContent = '';
+    var list = month.entries.slice().sort(function(a,b){ return (b.ts||0) - (a.ts||0); });
+    if (!list.length){
+      var tr0 = document.createElement('tr');
+      var td0 = document.createElement('td');
+      td0.className = 'empty'; td0.colSpan = 5;
+      td0.textContent = 'Nothing logged for ' + monthName(cur) + ' yet.';
+      tr0.appendChild(td0); rows.appendChild(tr0);
+    } else {
+      list.forEach(function(en){
+        var tr = document.createElement('tr');
+        function cell(text, cls){
+          var td = document.createElement('td');
+          if (cls) td.className = cls;
+          td.textContent = text;
+          tr.appendChild(td); return td;
+        }
+        cell(en.day ? String(en.day) : '', 'num');
+        cell((ENVBY[en.cat] && ENVBY[en.cat].name) || en.cat);
+        cell(en.note || '');
+        cell(money2(Number(en.amt)||0), 'n');
+        var act = document.createElement('td'); act.className = 'act';
+        var x = document.createElement('button');
+        x.type = 'button'; x.className = 'rm'; x.textContent = 'Remove';
+        x.title = 'Put this money back in its envelope';
+        x.disabled = !canWrite;
+        x.addEventListener('click', function(){
+          lastRemoved = en;
+          month.entries = month.entries.filter(function(o){ return o.id !== en.id; });
+          writeMonth();
+          render();
+        });
+        act.appendChild(x); tr.appendChild(act);
+        rows.appendChild(tr);
+      });
+    }
+
+    // savings
+    $('bal').textContent = money2(savings.balance);
+    var prev = shiftMonth(cur, -1);
+    var already = cur === FIRST ||
+      (savings.sweeps || []).some(function(s){ return s.month === prev; });
+    var box = $('sweepbox');
+    box.textContent = '';
+    var p = document.createElement('p');
+    if (already){
+      p.innerHTML = (cur === FIRST)
+        ? '<strong>This is the starting balance.</strong> At the end of ' + monthName(FIRST) +
+          ', come back and sweep whatever is still sitting in the envelopes into it.'
+        : '<strong>' + monthName(prev) + ' is already swept.</strong> Whatever was left in the envelopes went into this balance.';
+      box.appendChild(p);
+    } else {
+      p.innerHTML = '<strong>Sweep the leftovers.</strong> At the end of a month, anything still sitting in the envelopes belongs here rather than drifting into next month. Open ' + monthName(prev) + ', check the number, then sweep it.';
+      box.appendChild(p);
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'btn';
+      btn.style.marginTop = '.6rem';
+      btn.textContent = 'Sweep ' + monthName(cur) + '’s ' + money(Math.max(0,left)) + ' into savings';
+      btn.disabled = !canWrite || left <= 0;
+      btn.addEventListener('click', function(){ sweep(left); });
+      box.appendChild(btn);
+    }
+
+    var h = $('hist');
+    h.textContent = '';
+    var sw = savings.sweeps || [];
+    sw.slice().reverse().slice(0,6).forEach(function(s){
+      var d = document.createElement('div');
+      var a = document.createElement('span'); a.textContent = 'Swept from ' + monthName(s.month);
+      var b2 = document.createElement('span'); b2.className = 'num'; b2.textContent = '+' + money2(s.amount);
+      d.appendChild(a); d.appendChild(b2); h.appendChild(d);
+    });
+    if (sw.length && canWrite){
+      var last = sw[sw.length-1];
+      var undoS = document.createElement('button');
+      undoS.type = 'button'; undoS.className = 'rm';
+      undoS.style.alignSelf = 'flex-start'; undoS.style.marginTop = '.4rem';
+      undoS.textContent = 'Undo the ' + money2(last.amount) + ' sweep from ' + monthName(last.month);
+      undoS.addEventListener('click', function(){
+        if (!window.confirm('Take ' + money2(last.amount) + ' back out of the savings balance?')) return;
+        savings = {
+          balance: Math.round((savings.balance - last.amount) * 100) / 100,
+          sweeps: sw.slice(0, -1)
+        };
+        writeSavings(); render();
+      });
+      h.appendChild(undoS);
+    }
+  }
+
+  function sweep(amount){
+    if (amount <= 0) return;
+    if (!window.confirm('Move ' + money(amount) + ' from this month’s leftover envelopes into the big savings account?\n\nThe balance becomes ' + money(savings.balance + amount) + '.')) return;
+    savings = {
+      balance: Math.round((savings.balance + amount) * 100) / 100,
+      sweeps: (savings.sweeps || []).concat([{month: cur, amount: Math.round(amount*100)/100}])
+    };
+    writeSavings();
+  }
+
+  // ----------------------------------------------------------------- wire --
+
+  $('form').addEventListener('submit', function(ev){
+    ev.preventDefault();
+    if (!canWrite) return;
+    var amt = parseFloat($('amt').value);
+    if (!(amt > 0)) { $('amt').focus(); return; }
+    var now = new Date();
+    month.entries = month.entries.concat([{
+      id: 'e' + now.getTime() + Math.random().toString(36).slice(2,7),
+      cat: $('cat').value,
+      amt: Math.round(amt*100)/100,
+      note: $('note').value.trim(),
+      day: (monthKey(now) === cur) ? now.getDate() : 1,
+      ts: now.getTime()
+    }]);
+    $('amt').value = ''; $('note').value = '';
+    writeMonth();
+    $('amt').focus();
+  });
+
+  $('prev').addEventListener('click', function(){
+    var back = shiftMonth(cur,-1);
+    if (back < FIRST) return;
+    cur = back; subscribe(); render();
+  });
+  $('next').addEventListener('click', function(){ cur = shiftMonth(cur, 1); subscribe(); render(); });
+
+  $('editbal').addEventListener('click', function(){
+    if (!canWrite) return;
+    var v = window.prompt('What does the big savings account actually hold right now?', String(savings.balance));
+    if (v === null) return;
+    var n = parseFloat(String(v).replace(/[^0-9.\-]/g,''));
+    if (isNaN(n)) return;
+    savings = {balance: Math.round(n*100)/100, sweeps: savings.sweeps || []};
+    writeSavings();
+  });
+
+  // render immediately from local data, then upgrade to the shared store
+  loadLocal();
+  setStatus('Saved in this browser only. Connecting to the shared copy…');
+
+  if (window.claude && typeof window.claude.use === 'function') {
+    window.claude.use('db').then(function(d){
+      if (!d) { setStatus('Saved on this phone. Nothing leaves the device and nothing is sent anywhere.'); return; }
+      db = d;
+      setStatus('');
+      subscribe();
+      if (unsubS) unsubS();
+      unsubS = db.doc('account/savings').onSnapshot(function(snap){
+        if (snap.exists){
+          var v = snap.data();
+          savings = {
+            balance: typeof v.balance === 'number' ? v.balance : START_BALANCE,
+            sweeps: Array.isArray(v.sweeps) ? v.sweeps : []
+          };
+        }
+        render();
+      });
+    }).catch(function(){
+      setStatus('Saved on this phone. Nothing leaves the device and nothing is sent anywhere.');
+    });
+  } else {
+    setStatus('Saved on this phone. Nothing leaves the device and nothing is sent anywhere.');
+  }
+})();
+</script>
+
+<script>
+/* Sonoran contour ground: a generated height field of the ranges that ring
+   Phoenix, drawn once as iso-lines. Static by design, no animation. */
+(function(){
+  "use strict";
+  var cv = document.getElementById('topo');
+  if (!cv || !cv.getContext) return;
+  var ctx;
+  try { ctx = cv.getContext('2d'); } catch(e){ return; }
+  if (!ctx) return;
+
+  function rng(seed){
+    return function(){
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function lattice(g, seed){
+    var r = rng(seed), grid = [], y, x;
+    for (y = 0; y <= g; y++){ grid[y] = []; for (x = 0; x <= g; x++) grid[y][x] = r(); }
+    return function(u, v){
+      var fx = Math.min(Math.max(u, 0), 0.9999) * g;
+      var fy = Math.min(Math.max(v, 0), 0.9999) * g;
+      var x0 = Math.floor(fx), y0 = Math.floor(fy);
+      var tx = fx - x0, ty = fy - y0;
+      tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
+      var a = grid[y0][x0], b = grid[y0][x0 + 1];
+      var c = grid[y0 + 1][x0], d = grid[y0 + 1][x0 + 1];
+      return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+    };
+  }
+
+  /* four ranges, placed like the real basin: South Mountain along the bottom,
+     Camelback and Piestewa mid-right, the Estrellas off to the south west. */
+  var PEAKS = [
+    {x:0.50, y:1.06, r:0.52, h:1.00},
+    {x:0.74, y:0.40, r:0.20, h:0.78},
+    {x:0.86, y:0.22, r:0.15, h:0.62},
+    {x:0.06, y:0.88, r:0.30, h:0.80},
+    {x:0.18, y:0.12, r:0.24, h:0.55}
+  ];
+
+  var n1 = lattice(6, 20260918), n2 = lattice(13, 77123), n3 = lattice(27, 4412);
+
+  function drawn(){
+    var w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    var step = 7;
+    var cols = Math.ceil(w / step) + 1, rows = Math.ceil(h / step) + 1;
+    var f = new Float32Array(cols * rows);
+    var ar = w / h, i, j, u, v, k, val, p, dx, dy, d;
+
+    for (j = 0; j < rows; j++){
+      v = j * step / h;
+      for (i = 0; i < cols; i++){
+        u = i * step / w;
+        val = 0.50 * n1(u, v) + 0.32 * n2(u * 1.9, v * 1.9) + 0.18 * n3(u * 4.1, v * 4.1);
+        for (k = 0; k < PEAKS.length; k++){
+          p = PEAKS[k];
+          dx = (u - p.x) * ar; dy = v - p.y;
+          d = Math.sqrt(dx * dx + dy * dy) / p.r;
+          if (d < 1) val += p.h * (1 - d) * (1 - d);
+        }
+        f[j * cols + i] = val;
+      }
+    }
+
+    var lo = Infinity, hi = -Infinity;
+    for (i = 0; i < f.length; i++){ if (f[i] < lo) lo = f[i]; if (f[i] > hi) hi = f[i]; }
+    if (hi - lo < 1e-6) return;
+
+    var css = getComputedStyle(document.documentElement);
+    var stroke = (css.getPropertyValue('--line') || '#E2E5E0').trim();
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = stroke;
+
+    var LEVELS = 15;
+    function at(ix, iy){ return f[iy * cols + ix]; }
+
+    for (var L = 1; L < LEVELS; L++){
+      var level = lo + (hi - lo) * (L / LEVELS);
+      /* every fifth line is an index contour, as on a real map */
+      ctx.lineWidth = (L % 5 === 0) ? 1.7 : 0.9;
+      ctx.globalAlpha = (L % 5 === 0) ? 1 : 0.7;
+      ctx.beginPath();
+      for (j = 0; j < rows - 1; j++){
+        for (i = 0; i < cols - 1; i++){
+          var a = at(i, j), b = at(i + 1, j), c = at(i + 1, j + 1), dd = at(i, j + 1);
+          var idx = (a > level ? 8 : 0) | (b > level ? 4 : 0) | (c > level ? 2 : 0) | (dd > level ? 1 : 0);
+          if (idx === 0 || idx === 15) continue;
+          var x0 = i * step, y0 = j * step, sx = step;
+          var top  = [x0 + sx * (level - a) / (b - a), y0];
+          var rgt  = [x0 + sx, y0 + sx * (level - b) / (c - b)];
+          var bot  = [x0 + sx * (level - dd) / (c - dd), y0 + sx];
+          var lft  = [x0, y0 + sx * (level - a) / (dd - a)];
+          function seg(p1, p2){ ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); }
+          switch (idx){
+            case 1: case 14: seg(lft, bot); break;
+            case 2: case 13: seg(bot, rgt); break;
+            case 3: case 12: seg(lft, rgt); break;
+            case 4: case 11: seg(top, rgt); break;
+            case 6: case 9:  seg(top, bot); break;
+            case 7: case 8:  seg(top, lft); break;
+            case 5:  seg(top, lft); seg(bot, rgt); break;
+            case 10: seg(top, rgt); seg(lft, bot); break;
+          }
+        }
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  var t = null;
+  function schedule(){ clearTimeout(t); t = setTimeout(drawn, 160); }
+  drawn();
+  window.addEventListener('resize', schedule);
+  if (window.matchMedia){
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', schedule);
+    else if (mq.addListener) mq.addListener(schedule);
+  }
+  if (window.MutationObserver){
+    new MutationObserver(schedule).observe(document.documentElement,
+      {attributes:true, attributeFilter:['data-theme']});
+  }
+})();
+</script>
