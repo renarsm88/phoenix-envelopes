@@ -114,6 +114,23 @@
         border:1px solid var(--move); border-radius:99px; padding:.05rem .35rem;
         margin-left:.45rem; white-space:nowrap}
 
+  /* ---- editing the envelopes ---- */
+  .sechead{display:flex; align-items:center; justify-content:space-between;
+           gap:.6rem; margin-bottom:.55rem}
+  .sechead h2{font-size:1.02rem; margin:0}
+  .btn.small{font-size:.8rem; padding:.3rem .7rem}
+  .erow{display:flex; flex-wrap:wrap; align-items:center; gap:.45rem;
+        padding:.6rem .85rem; border-bottom:1px solid var(--line-soft); margin:0}
+  .erow:last-child{border-bottom:0}
+  .erow .ename{flex:1 1 7rem; min-width:0}
+  .erow .ebud{flex:0 0 6.4rem; display:flex; align-items:center; gap:.3rem; color:var(--muted)}
+  .erow .ebud input{flex:1; min-width:0}
+  .erow.rest{justify-content:space-between; font-size:.85rem; color:var(--muted)}
+  .erow.rest .num{font-family:var(--display); font-size:1.05rem; color:var(--ink)}
+  .erow.addrow{background:var(--sunk)}
+  td.act{white-space:nowrap}
+  .rm + .rm{margin-left:.3rem}
+
   /* ---- log form ---- */
   form.log{display:grid; gap:.5rem; grid-template-columns:1fr;
            border:1px solid var(--line); border-radius:10px; padding:.85rem;
@@ -220,7 +237,10 @@
   <div class="banner" id="phase" hidden></div>
 
   <section>
-    <h2>Envelopes</h2>
+    <div class="sechead">
+      <h2>Envelopes</h2>
+      <button class="btn ghost small" type="button" id="editenv">Edit</button>
+    </div>
     <p class="sub" id="envsub">Tap one to log against it.</p>
     <div class="envs" id="envs"></div>
   </section>
@@ -252,11 +272,12 @@
 
   <section>
     <h2>This month&rsquo;s spending</h2>
-    <p class="sub">Logged something by mistake? Remove puts the money straight back in its
-      envelope, and you get one chance to undo that too. Nothing here is final.</p>
+    <p class="sub">Typed the wrong amount? Change fixes it. Logged something by mistake? Remove puts
+      the money straight back in its envelope, and you get one chance to undo that too.
+      Nothing here is final.</p>
     <div id="undobox"></div>
     <div class="scroll"><table>
-      <thead><tr><th>Day</th><th>Envelope</th><th>What</th><th style="text-align:right">Amount</th><th>Put back</th></tr></thead>
+      <thead><tr><th>Day</th><th>Envelope</th><th>What</th><th style="text-align:right">Amount</th><th>Fix it</th></tr></thead>
       <tbody id="rows"></tbody>
     </table></div>
   </section>
@@ -280,7 +301,8 @@
 
   <footer>
     <p><strong>Add this page to your home screen</strong> so it opens like an app: in Safari tap Share, then Add to Home Screen. Your entries live on this device, so use the same phone each time and do not clear website data.</p>
-    <p>Envelope amounts come from <em>Phoenix Budget 2026.xlsx</em>. She is paid hourly on the
+    <p>Envelope amounts come from <em>Phoenix Budget 2026.xlsx</em> until you change them
+      with the Edit button. She is paid hourly on the
       1st and the 15th, so a month pays its working days times $132.91 after tax. That is why
       October, November and February are all different sizes. The bills, the spending money and
       the savings transfer stay the same; the difference lands in the last bucket. Nothing here
@@ -314,8 +336,11 @@
     {id:'subs',   name:'Subscriptions',                        budget:69},
     {id:'clothes',name:'Clothes',                              budget:60}
   ];
-  var FIXED = 1289;   /* the eight envelopes above */
+  /* ENV is only the starting list. Once she edits her envelopes the list lives
+     in envDoc (see storage) and these defaults are never used again. */
   var SAVE  = 752;    /* emergency 463 + Roth 289, the same every payday */
+  var LATER = 1025;   /* Roth 625 + emergency 400, once furnishing is over */
+  function round2(n){ return Math.round(n * 100) / 100; }
   /* the furniture line runs in these two months only, then stops for good */
   var FURN_MONTHS = ['2026-10','2026-11'];
   function furnishing(m){ return FURN_MONTHS.indexOf(m) > -1; }
@@ -328,7 +353,7 @@
   ];
   function transfers(){
     if (furnishing(cur)) return TF_WHILE;
-    var spare = Math.round((income(cur) - FIXED - 625 - 400) * 100) / 100;
+    var spare = Math.max(0, rest(cur));
     return [
       {id:'roth2',  name:'Roth IRA, raised to the annual max',
        pot:'$7,500 a year. Do this one first.', amt:625},
@@ -338,13 +363,88 @@
        pot:'Whatever the month leaves. Ask HR about a match first.', amt:spare}
     ];
   }
-  function furnBudget(m){ return Math.round((income(m) - FIXED - SAVE) * 100) / 100; }
-  function envelopes(){
-    if (!furnishing(cur)) return ENV;
-    return ENV.concat([{id:'furn', name:'Furniture fund',
-                        budget:furnBudget(cur), furn:true}]);
+  /* Her envelope list, by the month it took effect. A month uses the newest
+     version dated on or before it, so editing never rewrites an earlier month. */
+  var envDoc = {versions:[]};
+  function cleanVersions(vs){
+    if (!Array.isArray(vs)) return [];
+    var out = [];
+    vs.forEach(function(v){
+      if (!v || typeof v.from !== 'string' || !Array.isArray(v.list)) return;
+      var list = [];
+      v.list.forEach(function(e){
+        if (!e || typeof e.id !== 'string' || !e.id) return;
+        var b = Number(e.budget);
+        list.push({id:e.id, name:String(e.name || 'Envelope'),
+                   budget:(isFinite(b) && b >= 0) ? b : 0});
+      });
+      out.push({from:v.from, list:list});
+    });
+    out.sort(function(a,b){ return a.from < b.from ? -1 : (a.from > b.from ? 1 : 0); });
+    return out;
   }
-  var ENVBY = {}; ENV.forEach(function(e){ ENVBY[e.id] = e; });
+  function baseList(m){
+    var best = null;
+    envDoc.versions.forEach(function(v){
+      if (v.from <= m && (!best || v.from > best.from)) best = v;
+    });
+    return best ? best.list : ENV;
+  }
+  function fixed(m){
+    var t = 0;
+    baseList(m).forEach(function(e){ t += Number(e.budget) || 0; });
+    return round2(t);
+  }
+  /* what the month leaves once the envelopes and the savings transfers are fed */
+  function rest(m){ return round2(income(m) - fixed(m) - (furnishing(m) ? SAVE : LATER)); }
+  function furnBudget(m){ return Math.max(0, rest(m)); }
+  function envelopes(){
+    var list = baseList(cur);
+    if (!furnishing(cur)) return list;
+    return list.concat([{id:'furn', name:'Furniture fund',
+                         budget:furnBudget(cur), furn:true}]);
+  }
+  function isLive(id){
+    return envelopes().some(function(e){ return e.id === id; });
+  }
+  /* the name for an entry, including envelopes she has since removed */
+  function nameOf(id){
+    var hit = null, i;
+    function look(list){
+      for (var k = 0; k < list.length && !hit; k++) if (list[k].id === id) hit = list[k].name;
+    }
+    look(envelopes());
+    for (i = envDoc.versions.length - 1; i >= 0 && !hit; i--) look(envDoc.versions[i].list);
+    if (!hit) look(ENV);
+    if (!hit && id === 'furn') hit = 'Furniture fund';
+    return hit || id;
+  }
+  function label(id){ return nameOf(id) + (isLive(id) ? '' : ' (removed)'); }
+
+  /* Apply one change to the month on screen and every later version. */
+  function changeEnvelopes(op){
+    var vs = envDoc.versions.map(function(v){
+      return {from:v.from, list:v.list.map(function(e){
+        return {id:e.id, name:e.name, budget:e.budget}; })};
+    });
+    if (!vs.some(function(v){ return v.from === cur; })){
+      vs.push({from:cur, list:baseList(cur).map(function(e){
+        return {id:e.id, name:e.name, budget:e.budget}; })});
+    }
+    vs.forEach(function(v){ if (v.from >= cur) v.list = op(v.list); });
+    envDoc = {versions: cleanVersions(vs)};
+    writeEnv();
+  }
+  function patchEnvelope(id, field, value){
+    changeEnvelopes(function(list){
+      return list.map(function(e){
+        if (e.id !== id) return e;
+        var c = {id:e.id, name:e.name, budget:e.budget};
+        c[field] = value;
+        return c;
+      });
+    });
+  }
 
   var $ = function(id){ return document.getElementById(id); };
   function money(n){
@@ -379,6 +479,7 @@
   var db = null, unsubM = null, unsubS = null;
   var chain = Promise.resolve();
   var lastRemoved = null;
+  var editing = false, editDrawn = false, restEl = null;
 
   function queue(fn){
     chain = chain.then(fn).catch(function(e){
@@ -415,10 +516,15 @@
   function loadLocal(){
     month = LS.read('pb.m.'+cur, {entries:[], transfers:{}});
     savings = LS.read('pb.savings', {balance:START_BALANCE, sweeps:[]});
+    envDoc = {versions: cleanVersions(LS.read('pb.env', {}).versions)};
     render();
   }
   function saveLocalMonth(){ LS.write('pb.m.'+cur, month); }
   function saveLocalSavings(){ LS.write('pb.savings', savings); }
+  function writeEnv(){
+    if (db) { queue(function(){ return db.doc('account/envelopes').set(envDoc); }); render(); return; }
+    LS.write('pb.env', envDoc); render();
+  }
 
   function writeMonth(){
     if (db) return queue(function(){ return db.doc('months/'+cur).set(month); });
@@ -453,9 +559,93 @@
     return t;
   }
   function totalLeft(){
+    /* every entry counts as spent, including ones in an envelope removed since */
     var t = 0;
-    envelopes().forEach(function(e){ t += e.budget - spentIn(e.id); });
-    return t;
+    envelopes().forEach(function(e){ t += e.budget; });
+    month.entries.forEach(function(en){ t -= Number(en.amt) || 0; });
+    return round2(t);
+  }
+
+  function drawEditor(host){
+    baseList(cur).forEach(function(e){
+      var row = document.createElement('div'); row.className = 'erow';
+      var nm = document.createElement('input');
+      nm.type = 'text'; nm.maxLength = 40; nm.value = e.name; nm.className = 'ename';
+      nm.setAttribute('aria-label', 'Envelope name');
+      var wrap = document.createElement('span'); wrap.className = 'ebud';
+      wrap.appendChild(document.createTextNode('$'));
+      var bd = document.createElement('input');
+      bd.type = 'number'; bd.step = '0.01'; bd.min = '0'; bd.inputMode = 'decimal';
+      bd.value = String(e.budget);
+      bd.setAttribute('aria-label', 'Monthly amount for ' + e.name);
+      wrap.appendChild(bd);
+      var name = e.name, budget = e.budget;
+      nm.addEventListener('change', function(){
+        var v = nm.value.trim();
+        if (!v){ nm.value = name; return; }
+        name = v; patchEnvelope(e.id, 'name', v);
+      });
+      bd.addEventListener('change', function(){
+        var n = parseFloat(bd.value);
+        if (isNaN(n) || n < 0){ bd.value = String(budget); return; }
+        budget = round2(n); bd.value = String(budget);
+        patchEnvelope(e.id, 'budget', budget);
+      });
+      var x = document.createElement('button');
+      x.type = 'button'; x.className = 'rm'; x.textContent = 'Remove';
+      x.addEventListener('click', function(){
+        var spent = spentIn(e.id);
+        var msg = 'Remove the "' + name + '" envelope from ' + monthName(cur) +
+          ' onward? Earlier months keep it.';
+        if (spent > 0) msg += '\n\nThe ' + money2(spent) + ' already logged against it in ' +
+          monthName(cur) + ' stays in the list and still counts as spent.';
+        if (!window.confirm(msg)) return;
+        editDrawn = false;
+        changeEnvelopes(function(list){
+          return list.filter(function(o){ return o.id !== e.id; });
+        });
+      });
+      row.appendChild(nm); row.appendChild(wrap); row.appendChild(x);
+      host.appendChild(row);
+    });
+
+    var rr = document.createElement('div'); rr.className = 'erow rest';
+    var rl = document.createElement('span');
+    rl.textContent = furnishing(cur)
+      ? 'Furniture fund: whatever the month leaves after these and savings'
+      : 'Index fund transfer: whatever the month leaves after these and savings';
+    restEl = document.createElement('span'); restEl.className = 'num';
+    restEl.textContent = money(rest(cur));
+    rr.appendChild(rl); rr.appendChild(restEl);
+    host.appendChild(rr);
+
+    var add = document.createElement('form'); add.className = 'erow addrow';
+    add.autocomplete = 'off';
+    var an = document.createElement('input');
+    an.type = 'text'; an.maxLength = 40; an.className = 'ename';
+    an.placeholder = 'New envelope name'; an.required = true;
+    an.setAttribute('aria-label', 'New envelope name');
+    var aw = document.createElement('span'); aw.className = 'ebud';
+    aw.appendChild(document.createTextNode('$'));
+    var ab = document.createElement('input');
+    ab.type = 'number'; ab.step = '0.01'; ab.min = '0'; ab.inputMode = 'decimal';
+    ab.placeholder = '0'; ab.required = true;
+    ab.setAttribute('aria-label', 'Monthly amount for the new envelope');
+    aw.appendChild(ab);
+    var go = document.createElement('button');
+    go.type = 'submit'; go.className = 'btn small'; go.textContent = 'Add';
+    add.appendChild(an); add.appendChild(aw); add.appendChild(go);
+    add.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      var v = an.value.trim(), n = parseFloat(ab.value);
+      if (!v){ an.focus(); return; }
+      if (isNaN(n) || n < 0){ ab.focus(); return; }
+      var fresh = {id:'c' + Date.now().toString(36) + Math.random().toString(36).slice(2,5),
+                   name:v, budget:round2(n)};
+      editDrawn = false;
+      changeEnvelopes(function(list){ return list.concat([fresh]); });
+    });
+    host.appendChild(add);
   }
 
   function render(){
@@ -473,14 +663,30 @@
 
     // envelopes
     $('envsub').textContent = 'Tap one to log against it. ' + monthName(cur) + ' has ' +
-      daysIn(cur) + ' working days, so ' + money(income(cur)) + ' comes in: ' + money(FIXED) +
+      daysIn(cur) + ' working days, so ' + money(income(cur)) + ' comes in: ' + money(fixed(cur)) +
       ' into these envelopes, ' + money(SAVE) + ' into savings' +
       (furnishing(cur) ? ', and the rest into furniture.' : ', and the rest invested.');
+    if (editing) $('envsub').textContent = 'Change a name or an amount, add an envelope, or' +
+      ' remove one. It applies from ' + monthName(cur) + ' onward; earlier months stay as' +
+      ' they were. Nothing you already logged is touched.';
+
+    var eb = $('editenv');
+    eb.textContent = editing ? 'Done' : 'Edit';
+    eb.hidden = !canWrite;
+    if (!canWrite) editing = false;
 
     var host = $('envs');
-    host.textContent = '';
     var live = envelopes();
-    live.forEach(function(e){
+    if (editing && editDrawn){
+      /* leave the inputs alone while she is typing in them */
+      if (restEl) restEl.textContent = money(rest(cur));
+    } else {
+      host.textContent = '';
+      restEl = null;
+      editDrawn = editing;
+      if (editing) drawEditor(host);
+    }
+    if (!editing) live.forEach(function(e){
       var spent = spentIn(e.id);
       var rem = e.budget - spent;
       var pct = e.budget > 0 ? Math.min(100, (spent/e.budget)*100) : 0;
@@ -544,7 +750,12 @@
 
     // a plain word about which phase this month is in
     var ph = $('phase');
-    if (furnishing(cur)){
+    if (rest(cur) < 0){
+      ph.textContent = 'The envelopes and the savings transfers now add up to ' +
+        money(-rest(cur)) + ' more than ' + monthName(cur) + ' brings in. Lower an envelope' +
+        ' or take one out, or the month will not balance.';
+      ph.className = 'banner warn';
+    } else if (furnishing(cur)){
       ph.textContent = 'Furnishing month. The furniture envelope is whatever ' +
         monthName(cur) + ' leaves after the bills and savings, so it moves with the number of' +
         ' working days. It runs in October and November only.';
@@ -565,7 +776,7 @@
       strip.className = 'undo';
       var txt = document.createElement('span');
       txt.textContent = 'Removed ' + money2(Number(lastRemoved.amt)||0) + ' from ' +
-        ((ENVBY[lastRemoved.cat] && ENVBY[lastRemoved.cat].name) || lastRemoved.cat) + '.';
+        nameOf(lastRemoved.cat) + '.';
       var sp = document.createElement('span'); sp.className = 'sp';
       var ok = document.createElement('button');
       ok.type = 'button'; ok.className = 'btn ghost'; ok.textContent = 'Put it back';
@@ -601,10 +812,29 @@
           tr.appendChild(td); return td;
         }
         cell(en.day ? String(en.day) : '', 'num');
-        cell((ENVBY[en.cat] && ENVBY[en.cat].name) || en.cat);
+        cell(label(en.cat));
         cell(en.note || '');
         cell(money2(Number(en.amt)||0), 'n');
         var act = document.createElement('td'); act.className = 'act';
+        var ch = document.createElement('button');
+        ch.type = 'button'; ch.className = 'rm'; ch.textContent = 'Change';
+        ch.title = 'Correct the amount';
+        ch.disabled = !canWrite;
+        ch.addEventListener('click', function(){
+          var v = window.prompt('What was the right amount?', String(en.amt));
+          if (v === null) return;
+          var n = parseFloat(String(v).replace(/[^0-9.]/g,''));
+          if (!(n > 0)) return;
+          month.entries = month.entries.map(function(o){
+            if (o.id !== en.id) return o;
+            var c = {}; for (var k in o) if (Object.prototype.hasOwnProperty.call(o,k)) c[k] = o[k];
+            c.amt = round2(n);
+            return c;
+          });
+          writeMonth();
+          render();
+        });
+        act.appendChild(ch);
         var x = document.createElement('button');
         x.type = 'button'; x.className = 'rm'; x.textContent = 'Remove';
         x.title = 'Put this money back in its envelope';
@@ -690,6 +920,7 @@
     if (!canWrite) return;
     var amt = parseFloat($('amt').value);
     if (!(amt > 0)) { $('amt').focus(); return; }
+    if (!$('cat').value) return;
     var now = new Date();
     month.entries = month.entries.concat([{
       id: 'e' + now.getTime() + Math.random().toString(36).slice(2,7),
@@ -707,9 +938,15 @@
   $('prev').addEventListener('click', function(){
     var back = shiftMonth(cur,-1);
     if (back < FIRST) return;
-    cur = back; subscribe(); render();
+    cur = back; editDrawn = false; subscribe(); render();
   });
-  $('next').addEventListener('click', function(){ cur = shiftMonth(cur, 1); subscribe(); render(); });
+  $('next').addEventListener('click', function(){
+    cur = shiftMonth(cur, 1); editDrawn = false; subscribe(); render();
+  });
+  $('editenv').addEventListener('click', function(){
+    if (!canWrite) return;
+    editing = !editing; editDrawn = false; render();
+  });
 
   $('editbal').addEventListener('click', function(){
     if (!canWrite) return;
@@ -740,6 +977,10 @@
             sweeps: Array.isArray(v.sweeps) ? v.sweeps : []
           };
         }
+        render();
+      });
+      db.doc('account/envelopes').onSnapshot(function(snap){
+        if (snap.exists) envDoc = {versions: cleanVersions(snap.data().versions)};
         render();
       });
     }).catch(function(){
