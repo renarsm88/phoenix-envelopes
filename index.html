@@ -365,7 +365,12 @@
   }
   /* Her envelope list, by the month it took effect. A month uses the newest
      version dated on or before it, so editing never rewrites an earlier month. */
-  var envDoc = {versions:[]};
+  var envDoc = {versions:[], done:[]};
+  function readEnvDoc(raw){
+    raw = raw || {};
+    return {versions: cleanVersions(raw.versions),
+            done: Array.isArray(raw.done) ? raw.done.filter(function(x){ return typeof x === 'string'; }) : []};
+  }
   function cleanVersions(vs){
     if (!Array.isArray(vs)) return [];
     var out = [];
@@ -422,18 +427,38 @@
   function label(id){ return nameOf(id) + (isLive(id) ? '' : ' (removed)'); }
 
   /* Apply one change to the month on screen and every later version. */
-  function changeEnvelopes(op){
+  function changeEnvelopes(op, at){
+    at = at || cur;
     var vs = envDoc.versions.map(function(v){
       return {from:v.from, list:v.list.map(function(e){
         return {id:e.id, name:e.name, budget:e.budget}; })};
     });
-    if (!vs.some(function(v){ return v.from === cur; })){
-      vs.push({from:cur, list:baseList(cur).map(function(e){
+    if (!vs.some(function(v){ return v.from === at; })){
+      vs.push({from:at, list:baseList(at).map(function(e){
         return {id:e.id, name:e.name, budget:e.budget}; })});
     }
-    vs.forEach(function(v){ if (v.from >= cur) v.list = op(v.list); });
-    envDoc = {versions: cleanVersions(vs)};
+    vs.forEach(function(v){ if (v.from >= at) v.list = op(v.list); });
+    envDoc = {versions: cleanVersions(vs), done: envDoc.done || []};
     writeEnv();
+  }
+
+  /* One-time change, applied once per saved copy and then never again, so she
+     can undo it with the Edit button and it stays undone.
+     2026-11: Gas goes, Car insurance at $172.85 takes its place, from November. */
+  var MIG = 'carins-2026-11';
+  function migrate(){
+    if (!canWrite || envDoc.done.indexOf(MIG) > -1) return;
+    envDoc.done = envDoc.done.concat([MIG]);
+    changeEnvelopes(function(list){
+      if (list.some(function(e){ return e.id === 'carins'; })) return list;
+      var fresh = {id:'carins', name:'Car insurance', budget:172.85};
+      var out = [], swapped = false;
+      list.forEach(function(e){
+        if (e.id === 'gas'){ out.push(fresh); swapped = true; } else out.push(e);
+      });
+      if (!swapped) out.push(fresh);
+      return out;
+    }, '2026-11');
   }
   function patchEnvelope(id, field, value){
     changeEnvelopes(function(list){
@@ -516,7 +541,8 @@
   function loadLocal(){
     month = LS.read('pb.m.'+cur, {entries:[], transfers:{}});
     savings = LS.read('pb.savings', {balance:START_BALANCE, sweeps:[]});
-    envDoc = {versions: cleanVersions(LS.read('pb.env', {}).versions)};
+    envDoc = readEnvDoc(LS.read('pb.env', {}));
+    if (!db) migrate();
     render();
   }
   function saveLocalMonth(){ LS.write('pb.m.'+cur, month); }
@@ -980,7 +1006,8 @@
         render();
       });
       db.doc('account/envelopes').onSnapshot(function(snap){
-        if (snap.exists) envDoc = {versions: cleanVersions(snap.data().versions)};
+        envDoc = readEnvDoc(snap.exists ? snap.data() : {});
+        migrate();
         render();
       });
     }).catch(function(){
